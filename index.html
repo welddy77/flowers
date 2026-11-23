@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Цветочки для Жени❤️</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #09090b;
+      color: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .scene {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    canvas#bouquetCanvas {
+      width: 100%;
+      max-width: 460px;
+      height: 460px;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas#bouquetCanvas:active {
+      cursor: grabbing;
+    }
+
+    .caption {
+      text-align: center;
+      margin-top: 8px;
+      pointer-events: none;
+    }
+
+    /* ИМЯ ПОЛУЧАТЕЛЯ — плавное появление первым */
+    h1 {
+      font-size: clamp(34px, 7vw, 44px);
+      font-weight: 800;
+      color: #f49ac2;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+      text-shadow: 0 0 28px rgba(244, 154, 194, 0.28);
+
+      opacity: 0;
+      transform: translateY(16px) scale(0.97);
+      filter: blur(6px);
+      transition:
+        opacity 1.8s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 1.8s cubic-bezier(0.16, 1, 0.3, 1),
+        filter 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    h1.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+
+    /* НИЖНЯЯ СТРОКА — плавное появление вслед за именем */
+    p {
+      font-size: clamp(15px, 3.5vw, 17px);
+      color: #b8b8be;
+      font-weight: 400;
+      letter-spacing: 0.2px;
+
+      opacity: 0;
+      transform: translateY(14px);
+      filter: blur(4px);
+      transition:
+        opacity 1.8s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 1.8s cubic-bezier(0.16, 1, 0.3, 1),
+        filter 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    p.visible {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="scene">
+    <canvas id="bouquetCanvas"></canvas>
+
+    <div class="caption">
+      <h1 id="recipientName">Женя, эти цветы только для тебя❤️</h1>
+      <p id="subtitleText">Они никогда не завянут❤️</p>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("bouquetCanvas");
+    const ctx = canvas.getContext("2d");
+    const recipientNameEl = document.getElementById("recipientName");
+    const subtitleTextEl = document.getElementById("subtitleText");
+
+    // Поддержка Retina / четкого текста
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const SIZE = 460;
+    canvas.width = SIZE * dpr;
+    canvas.height = SIZE * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Палитра цветов
+    const PALETTE = {
+      pink:   { r: 244, g: 154, b: 194 },
+      yellow: { r: 246, g: 211, b: 101 },
+      white:  { r: 238, g: 240, b: 245 },
+      green:  { r: 118, g: 201, b: 111 },
+      stem:   { r: 78,  g: 158, b: 82  }
+    };
+
+    const particles = [];
+    const sparkles = [];
+
+    // Фоновые мерцающие частицы
+    for (let i = 0; i < 36; i++) {
+      sparkles.push({
+        x: Math.random() * SIZE,
+        y: Math.random() * SIZE,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.015 + Math.random() * 0.02
+      });
+    }
+
+    // Генерация 3D-букета (y: от -145 низ стеблей до +135 верхушки бутонов)
+    function build3DBouquet() {
+      const flowers = [
+        { tx: 0,   ty: 95,  tz: 5,   color: "pink",   radius: 36 },
+        { tx: -52, ty: 78,  tz: 26,  color: "yellow", radius: 33 },
+        { tx: 54,  ty: 82,  tz: 22,  color: "yellow", radius: 33 },
+        { tx: -34, ty: 108, tz: -32, color: "white",  radius: 31 },
+        { tx: 36,  ty: 105, tz: -30, color: "pink",   radius: 32 },
+        { tx: -68, ty: 44,  tz: -16, color: "pink",   radius: 29 },
+        { tx: 66,  ty: 48,  tz: -14, color: "white",  radius: 29 },
+        { tx: 0,   ty: 55,  tz: 48,  color: "yellow", radius: 30 },
+        { tx: -22, ty: 42,  tz: -48, color: "yellow", radius: 28 },
+        { tx: 26,  ty: 40,  tz: -46, color: "white",  radius: 28 }
+      ];
+
+      const stemChars = ["|", ":", "|", "~", ":"];
+
+      flowers.forEach((f, idx) => {
+        const steps = 38;
+        const bx = -f.tx * 0.22;
+        const bz = -f.tz * 0.22;
+        const by = -135;
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const ease = t * t * (3 - 2 * t);
+          const x = bx + (f.tx - bx) * ease + Math.sin(t * Math.PI + idx) * 4;
+          const y = by + (f.ty - 12 - by) * t;
+          const z = bz + (f.tz - bz) * ease + Math.cos(t * Math.PI + idx) * 4;
+
+          particles.push({
+            x, y, z,
+            char: stemChars[(s + idx) % stemChars.length],
+            color: s < 14 ? "stem" : "green",
+            size: 11
+          });
+        }
+
+        const budChars = ["@", "#", "o", "+", "*", "/"];
+        const layers = 5;
+        for (let l = 0; l < layers; l++) {
+          const layerT = l / (layers - 1);
+          const ringR = f.radius * (0.28 + 0.72 * Math.sin(layerT * Math.PI * 0.85));
+          const ringY = f.ty - 10 + layerT * (f.radius * 0.78);
+          const count = Math.max(6, Math.floor(ringR * 0.62));
+
+          for (let c = 0; c < count; c++) {
+            const angle = (c / count) * Math.PI * 2 + l * 0.55;
+            const petalWave = 1 + 0.18 * Math.sin(angle * 5 + l);
+            const px = f.tx + Math.cos(angle) * ringR * petalWave;
+            const pz = f.tz + Math.sin(angle) * ringR * petalWave;
+            const py = ringY + Math.cos(angle * 3) * 3;
+
+            particles.push({
+              x: px,
+              y: py,
+              z: pz,
+              char: budChars[(c + l) % budChars.length],
+              color: f.color,
+              size: 11.5
+            });
+          }
+        }
+      });
+
+      const leafChars = ["/", "\\", "*", "+", "~", "="];
+      for (let i = 0; i < 14; i++) {
+        const angle = (i / 14) * Math.PI * 2;
+        const dist = 58 + (i % 3) * 14;
+        for (let k = 0; k < 7; k++) {
+          const kt = k / 6;
+          const r = 24 + kt * dist;
+          const spread = Math.sin(kt * Math.PI) * 12;
+          particles.push({
+            x: Math.cos(angle) * r - Math.sin(angle) * spread * 0.4,
+            y: -15 + kt * 38 + Math.sin(kt * Math.PI) * 10,
+            z: Math.sin(angle) * r + Math.cos(angle) * spread * 0.4,
+            char: leafChars[(i + k) % leafChars.length],
+            color: "green",
+            size: 11
+          });
+        }
+      }
+    }
+
+    build3DBouquet();
+
+    // Параметры анимации
+    let startTime = null;
+    const GROWTH_DURATION = 3400;
+    let rotationY = 0;
+    let autoSpeed = 0.0065;
+    let isDragging = false;
+    let lastMouseX = 0;
+    let nameShown = false;
+    let subtitleShown = false;
+
+    // Интерактивное вращение мышью/пальцем
+    canvas.addEventListener("pointerdown", (e) => {
+      isDragging = true;
+      lastMouseX = e.clientX;
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - lastMouseX;
+      rotationY += dx * 0.01;
+      lastMouseX = e.clientX;
+    });
+    window.addEventListener("pointerup", () => {
+      isDragging = false;
+    });
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function render(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+
+      const rawProgress = Math.min(elapsed / GROWTH_DURATION, 1);
+      const growthProgress = easeOutCubic(rawProgress);
+
+      // 1. Плавно появляется имя (на 2.3 сек)
+      if (elapsed >= 2300 && !nameShown) {
+        nameShown = true;
+        recipientNameEl.classList.add("visible");
+      }
+
+      // 2. Плавно появляется нижняя строка вслед за именем (на 3.4 сек)
+      if (elapsed >= 3400 && !subtitleShown) {
+        subtitleShown = true;
+        subtitleTextEl.classList.add("visible");
+      }
+
+      if (!isDragging) {
+        rotationY += autoSpeed;
+      }
+
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      sparkles.forEach((s) => {
+        s.phase += s.speed;
+        const alpha = 0.12 + 0.45 * (0.5 + 0.5 * Math.sin(s.phase));
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+        ctx.fillRect(s.x, s.y, 1.8, 1.8);
+      });
+
+      const cosY = Math.cos(rotationY);
+      const sinY = Math.sin(rotationY);
+      const tiltX = 0.16;
+      const cosX = Math.cos(tiltX);
+      const sinX = Math.sin(tiltX);
+
+      const currentMaxY = -145 + growthProgress * 290;
+      const projected = [];
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const diffY = currentMaxY - p.y;
+        if (diffY <= 0) continue;
+
+        const localAlpha = Math.min(diffY / 45, 1);
+        const bloomScale = 0.35 + 0.65 * easeOutCubic(localAlpha);
+
+        const px = p.x * bloomScale;
+        const py = p.y;
+        const pz = p.z * bloomScale;
+
+        const x1 = px * cosY - pz * sinY;
+        const z1 = pz * cosY + px * sinY;
+
+        const y2 = py * cosX - z1 * sinX;
+        const z2 = z1 * cosX + py * sinX;
+
+        const fov = 420;
+        const scale = fov / (fov + z2 + 120);
+
+        const screenX = SIZE / 2 + x1 * scale * 1.32;
+        const screenY = SIZE / 2 - y2 * scale * 1.32 + 12;
+
+        projected.push({
+          screenX,
+          screenY,
+          z: z2,
+          scale,
+          alpha: localAlpha,
+          char: p.char,
+          color: p.color,
+          size: p.size
+        });
+      }
+
+      projected.sort((a, b) => b.z - a.z);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i < projected.length; i++) {
+        const pt = projected[i];
+        const rgb = PALETTE[pt.color];
+
+        const depthFade = Math.max(0.32, Math.min(1.05, 0.78 - pt.z / 240));
+        const finalAlpha = pt.alpha * depthFade;
+
+        const fontSize = (pt.size * pt.scale).toFixed(1);
+        ctx.font = `700 ${fontSize}px "JetBrains Mono", "Fira Code", "Courier New", monospace`;
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${finalAlpha.toFixed(3)})`;
+        ctx.fillText(pt.char, pt.screenX, pt.screenY);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
